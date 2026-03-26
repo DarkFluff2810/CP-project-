@@ -10,11 +10,15 @@ from dotenv import load_dotenv
 import random
 import asyncio
 import logging
+import sys
+
+# Add current directory to path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Import database models and functions
 from database import get_db, Metrics, RobotPosition, RobotIMU, RobotHealth, Robot, Alert, AlertRule
 from websocket_manager import manager
-from alert_manager import AlertManager
+from alertmanager import AlertManager
 from sqlalchemy.orm import Session
 
 # Load environment variables
@@ -135,7 +139,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return encoded_jwt
 
 
-def verify_token(credentials = Depends(HTTPBeaker())) -> str:
+def verify_token(credentials = Depends(HTTPBearer())) -> str:
     """
     Verify JWT token from request
     
