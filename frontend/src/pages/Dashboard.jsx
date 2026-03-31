@@ -21,6 +21,21 @@ export default function Dashboard() {
   const [imuData, setImuData] = useState([]);
   const [messageData, setMessageData] = useState([]);
   
+  // Robot Control State
+  const [robotPower, setRobotPower] = useState(false);
+  const [robotMoving, setRobotMoving] = useState(null); // 'forward', 'back', 'left', 'right', null
+  const [joystickX, setJoystickX] = useState(0);
+  const [joystickY, setJoystickY] = useState(0);
+  const [button1Active, setButton1Active] = useState(false);
+  const [button2Active, setButton2Active] = useState(false);
+  const [commandLog, setCommandLog] = useState([]);
+  
+  // Camera State
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraFeed, setCameraFeed] = useState(null);
+  const [cameraLoading, setCameraLoading] = useState(false);
+  const [cameraError, setCameraError] = useState('');
+  
   // UI State
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -31,6 +46,8 @@ export default function Dashboard() {
   const [lastUpdate, setLastUpdate] = useState(new Date());
   const [dataPointsCount, setDataPointsCount] = useState(0);
   const [showStats, setShowStats] = useState(false);
+  const [showControls, setShowControls] = useState(true);
+  const [showCamera, setShowCamera] = useState(true);
 
   // ==================== VERIFY TOKEN ====================
   useEffect(() => {
@@ -38,7 +55,6 @@ export default function Dashboard() {
     if (!token) {
       navigate('/');
     } else if (useWebSocket) {
-      // Connect to WebSocket
       wsManager.connect(token);
     }
 
@@ -56,7 +72,6 @@ export default function Dashboard() {
         const res = await api.get('/api/robots');
         setRobots(res.data.robots);
         
-        // Set selected robot from localStorage or first robot
         const saved = localStorage.getItem('selectedRobot');
         if (saved && res.data.robots.some(r => r.robot_id === saved)) {
           setSelectedRobot(saved);
@@ -87,6 +102,34 @@ export default function Dashboard() {
 
     fetchRobotStats();
   }, [selectedRobot]);
+
+  // ==================== CAMERA FEED ====================
+  useEffect(() => {
+    if (!cameraActive) return;
+
+    const fetchCameraFeed = async () => {
+      try {
+        setCameraLoading(true);
+        setCameraError('');
+        
+        // Generate a random camera feed URL (placeholder)
+        // In a real scenario, this would be the actual camera stream URL
+        const randomSeed = Math.random() * 1000;
+        const cameraUrl = `https://picsum.photos/640/480?random=${randomSeed}`;
+        
+        setCameraFeed(cameraUrl);
+        setCameraLoading(false);
+      } catch (err) {
+        setCameraError('Failed to load camera feed');
+        setCameraLoading(false);
+      }
+    };
+
+    fetchCameraFeed();
+    const interval = setInterval(fetchCameraFeed, 2000); // Refresh every 2 seconds
+    
+    return () => clearInterval(interval);
+  }, [cameraActive]);
 
   // ==================== WEBSOCKET LISTENERS ====================
   useEffect(() => {
@@ -242,7 +285,107 @@ export default function Dashboard() {
     fetchData();
   }, [useWebSocket, selectedRobot]);
 
-  // ==================== EVENT HANDLERS ====================
+  // ==================== ROBOT CONTROL HANDLERS ====================
+
+  const addCommandLog = (command) => {
+    setCommandLog((prev) => [
+      { command, timestamp: new Date().toLocaleTimeString() },
+      ...prev.slice(0, 9),
+    ]);
+  };
+
+  const handlePowerToggle = () => {
+    const newState = !robotPower;
+    setRobotPower(newState);
+    addCommandLog(newState ? '⚡ Power ON' : '⚡ Power OFF');
+  };
+
+  const handleForward = () => {
+    if (!robotPower) {
+      alert('⚠️ Turn ON power first!');
+      return;
+    }
+    setRobotMoving('forward');
+    addCommandLog('⬆️ Moving Forward');
+    setTimeout(() => setRobotMoving(null), 1000);
+  };
+
+  const handleBackward = () => {
+    if (!robotPower) {
+      alert('⚠️ Turn ON power first!');
+      return;
+    }
+    setRobotMoving('back');
+    addCommandLog('⬇️ Moving Backward');
+    setTimeout(() => setRobotMoving(null), 1000);
+  };
+
+  const handleLeft = () => {
+    if (!robotPower) {
+      alert('⚠️ Turn ON power first!');
+      return;
+    }
+    setRobotMoving('left');
+    addCommandLog('⬅️ Moving Left');
+    setTimeout(() => setRobotMoving(null), 1000);
+  };
+
+  const handleRight = () => {
+    if (!robotPower) {
+      alert('⚠️ Turn ON power first!');
+      return;
+    }
+    setRobotMoving('right');
+    addCommandLog('➡️ Moving Right');
+    setTimeout(() => setRobotMoving(null), 1000);
+  };
+
+  const handleJoystickMove = (e) => {
+    if (!robotPower) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+    const x = e.clientX - rect.left - centerX;
+    const y = e.clientY - rect.top - centerY;
+
+    const distance = Math.sqrt(x * x + y * y);
+    const maxDistance = rect.width / 2;
+
+    if (distance > maxDistance) {
+      const angle = Math.atan2(y, x);
+      setJoystickX(Math.cos(angle) * maxDistance);
+      setJoystickY(Math.sin(angle) * maxDistance);
+    } else {
+      setJoystickX(x);
+      setJoystickY(y);
+    }
+  };
+
+  const handleJoystickEnd = () => {
+    setJoystickX(0);
+    setJoystickY(0);
+  };
+
+  const handleButton1 = () => {
+    if (!robotPower) {
+      alert('⚠️ Turn ON power first!');
+      return;
+    }
+    setButton1Active(true);
+    addCommandLog('🔘 Button 1 Pressed');
+    setTimeout(() => setButton1Active(false), 500);
+  };
+
+  const handleButton2 = () => {
+    if (!robotPower) {
+      alert('⚠️ Turn ON power first!');
+      return;
+    }
+    setButton2Active(true);
+    addCommandLog('🔘 Button 2 Pressed');
+    setTimeout(() => setButton2Active(false), 500);
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -330,7 +473,7 @@ export default function Dashboard() {
   };
 
   const mainStyle = {
-    maxWidth: '1400px',
+    maxWidth: '1600px',
     margin: '0 auto',
     padding: '32px',
   };
@@ -461,7 +604,7 @@ export default function Dashboard() {
 
   const metricsGridStyle = {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
     gap: '16px',
     marginBottom: '24px',
   };
@@ -483,6 +626,100 @@ export default function Dashboard() {
     marginBottom: '24px',
   };
 
+  const controlPanelBoxStyle = {
+    background: 'rgba(255, 255, 255, 0.05)',
+    border: '2px solid rgba(59, 130, 246, 0.3)',
+    borderRadius: '16px',
+    padding: '24px',
+    marginBottom: '24px',
+  };
+
+  const cameraBoxStyle = {
+    background: 'rgba(0, 0, 0, 0.3)',
+    border: '2px solid rgba(168, 85, 247, 0.3)',
+    borderRadius: '12px',
+    padding: '16px',
+    marginBottom: '24px',
+    overflow: 'hidden',
+  };
+
+  const powerButtonStyle = {
+    width: '100px',
+    height: '100px',
+    borderRadius: '50%',
+    border: 'none',
+    fontSize: '40px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    transition: 'all 0.3s',
+    boxShadow: robotPower
+      ? '0 0 20px rgba(16, 185, 129, 0.5)'
+      : '0 0 20px rgba(239, 68, 68, 0.5)',
+    background: robotPower
+      ? 'rgba(16, 185, 129, 0.3)'
+      : 'rgba(239, 68, 68, 0.3)',
+  };
+
+  const movementButtonStyle = {
+    width: '70px',
+    height: '70px',
+    borderRadius: '12px',
+    border: 'none',
+    fontSize: '32px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+    background: 'rgba(255, 255, 255, 0.1)',
+    color: 'white',
+  };
+
+  const joystickContainerStyle = {
+    width: '200px',
+    height: '200px',
+    borderRadius: '50%',
+    background: 'rgba(0, 0, 0, 0.3)',
+    border: '3px solid rgba(59, 130, 246, 0.5)',
+    position: 'relative',
+    cursor: robotPower ? 'grab' : 'not-allowed',
+    opacity: robotPower ? 1 : 0.5,
+  };
+
+  const joystickStickStyle = {
+    width: '60px',
+    height: '60px',
+    borderRadius: '50%',
+    background: 'rgba(59, 130, 246, 0.8)',
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: `translate(calc(-50% + ${joystickX}px), calc(-50% + ${joystickY}px))`,
+    transition: 'transform 0.05s',
+    boxShadow: '0 0 15px rgba(59, 130, 246, 0.6)',
+  };
+
+  const customButtonStyle = {
+    width: '80px',
+    height: '80px',
+    borderRadius: '12px',
+    border: 'none',
+    fontSize: '32px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+    background: 'rgba(255, 255, 255, 0.1)',
+    color: 'white',
+  };
+
+  const commandLogStyle = {
+    background: 'rgba(0, 0, 0, 0.4)',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+    borderRadius: '8px',
+    padding: '12px',
+    maxHeight: '200px',
+    overflowY: 'auto',
+    fontSize: '12px',
+  };
+
   // ==================== RENDER ====================
 
   return (
@@ -491,7 +728,6 @@ export default function Dashboard() {
       <nav style={navStyle}>
         <h1 style={navTitleStyle}>🤖 Robot Monitoring</h1>
         
-        {/* Robot Selector */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '200px' }}>
           <label style={{ fontWeight: '600', fontSize: '14px' }}>Robot:</label>
           <select
@@ -507,7 +743,6 @@ export default function Dashboard() {
           </select>
         </div>
 
-        {/* Nav Buttons */}
         <div style={navButtonsStyle}>
           <div style={useWebSocket ? statusBadgeConnectedStyle : statusBadgeDisconnectedStyle}>
             <span style={{ fontSize: '12px' }}>{useWebSocket ? '●' : '○'}</span>
@@ -522,7 +757,6 @@ export default function Dashboard() {
             style={buttonStyle}
             onMouseEnter={(e) => (e.target.style.background = '#2563eb')}
             onMouseLeave={(e) => (e.target.style.background = '#3b82f6')}
-            title="Manage robot fleet"
           >
             🚀 Fleet
           </button>
@@ -531,7 +765,6 @@ export default function Dashboard() {
             style={buttonStyle}
             onMouseEnter={(e) => (e.target.style.background = '#2563eb')}
             onMouseLeave={(e) => (e.target.style.background = '#3b82f6')}
-            title="View historical data"
           >
             📊 History
           </button>
@@ -540,7 +773,6 @@ export default function Dashboard() {
             style={buttonStyle}
             onMouseEnter={(e) => (e.target.style.background = '#2563eb')}
             onMouseLeave={(e) => (e.target.style.background = '#3b82f6')}
-            title="Manage alerts"
           >
             🚨 Alerts
           </button>
@@ -549,7 +781,6 @@ export default function Dashboard() {
             style={buttonDangerStyle}
             onMouseEnter={(e) => (e.target.style.background = '#dc2626')}
             onMouseLeave={(e) => (e.target.style.background = '#ef4444')}
-            title="Logout"
           >
             Logout
           </button>
@@ -561,7 +792,7 @@ export default function Dashboard() {
         {/* Header */}
         <div style={headerStyle}>
           <div>
-            <h2 style={titleStyle}>📈 Live Monitoring</h2>
+            <h2 style={titleStyle}>📈 Live Monitoring & Control</h2>
             <p style={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: '14px', marginTop: '4px' }}>
               Monitoring: <strong>{robots.find(r => r.robot_id === selectedRobot)?.name || selectedRobot}</strong>
             </p>
@@ -576,7 +807,335 @@ export default function Dashboard() {
         {/* Error Message */}
         {error && <div style={errorStyle}>⚠️ {error}</div>}
 
-        {/* Controls Panel */}
+        {/* ==================== CAMERA FEED SECTION ==================== */}
+        {showCamera && (
+          <div style={cameraBoxStyle}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: 'bold', color: '#a78bfa', margin: 0 }}>
+                📹 Camera Feed
+              </h3>
+              <button
+                onClick={() => setCameraActive(!cameraActive)}
+                style={{
+                  padding: '8px 16px',
+                  background: cameraActive ? '#10b981' : '#ef4444',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  fontSize: '12px',
+                }}
+              >
+                {cameraActive ? '🔴 LIVE' : '⚫ OFF'}
+              </button>
+            </div>
+
+            {cameraActive ? (
+              <div style={{
+                position: 'relative',
+                width: '100%',
+                paddingBottom: '56.25%',
+                height: 0,
+                overflow: 'hidden',
+                borderRadius: '8px',
+                background: 'rgba(0, 0, 0, 0.5)',
+              }}>
+                {cameraLoading && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    color: 'rgba(255, 255, 255, 0.6)',
+                    zIndex: 10,
+                  }}>
+                    ⏳ Loading camera...
+                  </div>
+                )}
+                {cameraError && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    color: '#fca5a5',
+                    zIndex: 10,
+                  }}>
+                    ❌ {cameraError}
+                  </div>
+                )}
+                {cameraFeed && (
+                  <img
+                    src={cameraFeed}
+                    alt="Robot Camera"
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      borderRadius: '8px',
+                    }}
+                  />
+                )}
+              </div>
+            ) : (
+              <div style={{
+                width: '100%',
+                aspectRatio: '16/9',
+                background: 'rgba(0, 0, 0, 0.3)',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'rgba(255, 255, 255, 0.5)',
+              }}>
+                <p>Camera is OFF - Click LIVE button to activate</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ==================== ROBOT CONTROL PANEL ==================== */}
+        {showControls && (
+          <div style={controlPanelBoxStyle}>
+            <h3 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '24px', color: '#93c5fd' }}>
+              🎮 Robot Control Panel
+            </h3>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+              gap: '32px',
+            }}>
+              {/* ========== POWER CONTROL ========== */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
+                <h4 style={{ fontSize: '16px', fontWeight: '600', color: 'rgba(255, 255, 255, 0.8)' }}>
+                  ⚡ Power
+                </h4>
+                <button
+                  onClick={handlePowerToggle}
+                  style={{
+                    ...powerButtonStyle,
+                    transform: robotPower ? 'scale(1)' : 'scale(0.95)',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = robotPower ? 'scale(1.1)' : 'scale(0.9)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = robotPower ? 'scale(1)' : 'scale(0.95)';
+                  }}
+                  title={robotPower ? 'Turn OFF' : 'Turn ON'}
+                >
+                  {robotPower ? '✓' : '✕'}
+                </button>
+                <p style={{ fontSize: '14px', fontWeight: '600', color: robotPower ? '#4ade80' : '#fca5a5' }}>
+                  {robotPower ? 'POWER ON' : 'POWER OFF'}
+                </p>
+              </div>
+
+              {/* ========== MOVEMENT CONTROL (4-DIRECTIONAL) ========== */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
+                <h4 style={{ fontSize: '16px', fontWeight: '600', color: 'rgba(255, 255, 255, 0.8)' }}>
+                  🎯 Movement Control
+                </h4>
+                
+                {/* Forward Button */}
+                <button
+                  onClick={handleForward}
+                  style={{
+                    ...movementButtonStyle,
+                    background: robotMoving === 'forward' ? 'rgba(34, 197, 94, 0.4)' : 'rgba(59, 130, 246, 0.2)',
+                    color: robotMoving === 'forward' ? '#4ade80' : 'white',
+                    boxShadow: robotMoving === 'forward' ? '0 0 15px rgba(34, 197, 94, 0.5)' : 'none',
+                  }}
+                  disabled={!robotPower}
+                  title="Move Forward"
+                >
+                  ⬆️
+                </button>
+
+                {/* Left and Right Buttons */}
+                <div style={{ display: 'flex', gap: '24px' }}>
+                  <button
+                    onClick={handleLeft}
+                    style={{
+                      ...movementButtonStyle,
+                      background: robotMoving === 'left' ? 'rgba(34, 197, 94, 0.4)' : 'rgba(59, 130, 246, 0.2)',
+                      color: robotMoving === 'left' ? '#4ade80' : 'white',
+                      boxShadow: robotMoving === 'left' ? '0 0 15px rgba(34, 197, 94, 0.5)' : 'none',
+                    }}
+                    disabled={!robotPower}
+                    title="Move Left"
+                  >
+                    ⬅️
+                  </button>
+
+                  <button
+                    onClick={handleRight}
+                    style={{
+                      ...movementButtonStyle,
+                      background: robotMoving === 'right' ? 'rgba(34, 197, 94, 0.4)' : 'rgba(59, 130, 246, 0.2)',
+                      color: robotMoving === 'right' ? '#4ade80' : 'white',
+                      boxShadow: robotMoving === 'right' ? '0 0 15px rgba(34, 197, 94, 0.5)' : 'none',
+                    }}
+                    disabled={!robotPower}
+                    title="Move Right"
+                  >
+                    ➡️
+                  </button>
+                </div>
+
+                {/* Backward Button */}
+                <button
+                  onClick={handleBackward}
+                  style={{
+                    ...movementButtonStyle,
+                    background: robotMoving === 'back' ? 'rgba(34, 197, 94, 0.4)' : 'rgba(59, 130, 246, 0.2)',
+                    color: robotMoving === 'back' ? '#4ade80' : 'white',
+                    boxShadow: robotMoving === 'back' ? '0 0 15px rgba(34, 197, 94, 0.5)' : 'none',
+                  }}
+                  disabled={!robotPower}
+                  title="Move Backward"
+                >
+                  ⬇️
+                </button>
+              </div>
+
+              {/* ========== JOYSTICK ========== */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
+                <h4 style={{ fontSize: '16px', fontWeight: '600', color: 'rgba(255, 255, 255, 0.8)' }}>
+                  🕹️ Joystick Control
+                </h4>
+                <div
+                  style={joystickContainerStyle}
+                  onMouseMove={handleJoystickMove}
+                  onMouseLeave={handleJoystickEnd}
+                  onTouchMove={(e) => {
+                    const touch = e.touches[0];
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const centerX = rect.width / 2;
+                    const centerY = rect.height / 2;
+                    const x = touch.clientX - rect.left - centerX;
+                    const y = touch.clientY - rect.top - centerY;
+                    const distance = Math.sqrt(x * x + y * y);
+                    const maxDistance = rect.width / 2;
+                    if (distance > maxDistance) {
+                      const angle = Math.atan2(y, x);
+                      setJoystickX(Math.cos(angle) * maxDistance);
+                      setJoystickY(Math.sin(angle) * maxDistance);
+                    } else {
+                      setJoystickX(x);
+                      setJoystickY(y);
+                    }
+                  }}
+                  onTouchEnd={handleJoystickEnd}
+                >
+                  <div style={joystickStickStyle}></div>
+                </div>
+                <p style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.6)', textAlign: 'center' }}>
+                  X: {joystickX.toFixed(0)} | Y: {joystickY.toFixed(0)}
+                </p>
+              </div>
+
+              {/* ========== CUSTOM BUTTONS ========== */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
+                <h4 style={{ fontSize: '16px', fontWeight: '600', color: 'rgba(255, 255, 255, 0.8)' }}>
+                  🔘 Custom Buttons
+                </h4>
+                <div style={{ display: 'flex', gap: '16px' }}>
+                  <button
+                    onClick={handleButton1}
+                    style={{
+                      ...customButtonStyle,
+                      background: button1Active ? 'rgba(168, 85, 247, 0.5)' : 'rgba(168, 85, 247, 0.2)',
+                      boxShadow: button1Active ? '0 0 15px rgba(168, 85, 247, 0.6)' : 'none',
+                    }}
+                    disabled={!robotPower}
+                    title="Button 1"
+                  >
+                    B1
+                  </button>
+                  <button
+                    onClick={handleButton2}
+                    style={{
+                      ...customButtonStyle,
+                      background: button2Active ? 'rgba(245, 158, 11, 0.5)' : 'rgba(245, 158, 11, 0.2)',
+                      boxShadow: button2Active ? '0 0 15px rgba(245, 158, 11, 0.6)' : 'none',
+                    }}
+                    disabled={!robotPower}
+                    title="Button 2"
+                  >
+                    B2
+                  </button>
+                </div>
+              </div>
+
+              {/* ========== COMMAND LOG ========== */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <h4 style={{ fontSize: '16px', fontWeight: '600', color: 'rgba(255, 255, 255, 0.8)' }}>
+                  📝 Command Log
+                </h4>
+                <div style={commandLogStyle}>
+                  {commandLog.length === 0 ? (
+                    <p style={{ color: 'rgba(255, 255, 255, 0.5)', margin: 0 }}>No commands yet...</p>
+                  ) : (
+                    commandLog.map((log, idx) => (
+                      <div key={idx} style={{ marginBottom: '6px', color: 'rgba(255, 255, 255, 0.8)' }}>
+                        <span style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '10px' }}>{log.timestamp}</span>
+                        <div>{log.command}</div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Hide Controls Button */}
+            <div style={{ marginTop: '24px', textAlign: 'center' }}>
+              <button
+                onClick={() => setShowControls(false)}
+                style={{
+                  padding: '8px 16px',
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  color: 'white',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  fontSize: '12px',
+                }}
+              >
+                Hide Controls
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Show Controls Button */}
+        {!showControls && (
+          <div style={{ marginBottom: '24px', textAlign: 'center' }}>
+            <button
+              onClick={() => setShowControls(true)}
+              style={{
+                padding: '12px 24px',
+                background: '#3b82f6',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontWeight: '600',
+                fontSize: '14px',
+              }}
+            >
+              Show Controls
+            </button>
+          </div>
+        )}
+
+        {/* Controls Panel - Data Management */}
         <div style={controlsPanelStyle}>
           <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
             <label style={{ fontWeight: '600', fontSize: '14px' }}>🔄 Connection Mode:</label>
@@ -619,7 +1178,6 @@ export default function Dashboard() {
               style={buttonStyle}
               onMouseEnter={(e) => (e.target.style.background = '#2563eb')}
               onMouseLeave={(e) => (e.target.style.background = '#3b82f6')}
-              title="Refresh dashboard"
             >
               🔁 Refresh
             </button>
@@ -628,7 +1186,6 @@ export default function Dashboard() {
               style={buttonSuccessStyle}
               onMouseEnter={(e) => (e.target.style.background = '#059669')}
               onMouseLeave={(e) => (e.target.style.background = '#10b981')}
-              title="Save current metrics to database"
             >
               💾 Save Data
             </button>
@@ -640,7 +1197,6 @@ export default function Dashboard() {
               }}
               onMouseEnter={(e) => (e.target.style.background = showStats ? '#7c3aed' : '#2563eb')}
               onMouseLeave={(e) => (e.target.style.background = showStats ? '#8b5cf6' : '#3b82f6')}
-              title="Toggle statistics"
             >
               📈 Stats
             </button>
@@ -787,7 +1343,6 @@ export default function Dashboard() {
                   e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
                   e.currentTarget.style.transform = 'translateY(0)';
                 }}
-                title={`${card.label}: ${card.value} ${card.unit}`}
               >
                 <div style={{ fontSize: '28px', marginBottom: '8px' }}>
                   {card.icon}
@@ -912,6 +1467,11 @@ export default function Dashboard() {
           to {
             opacity: 1;
           }
+        }
+
+        button:disabled {
+          opacity: 0.5;
+          cursor: not-allowed !important;
         }
       `}</style>
     </div>
